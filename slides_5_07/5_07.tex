@@ -6,8 +6,9 @@
 \usetheme{Boadilla}
 
 \title{0507汇报}
+\subtitle{项目三:基于大规模预训练模型的生成式知识问答}
+% \institute{项目三}
 \author{朱睿涵 \and 李宸亦}
-\institute{项目三}
 \date{\today}
 
 \begin{document}
@@ -22,14 +23,236 @@
     \end{frame}
 }
 
-\section{华为PANGU-BOT}
+\section{华为PANGUBOT}
 % 在这里插入PANGU-BOT部分的slides
-\begin{frame}
-    \frametitle{标题}
 
-    PANGU-BOT部分的slides
+\subsection{PANGUBOT介绍}
+\begin{frame}
+    \frametitle{PANGUBOT简介}
+
+    PANGUBOT是一种基于大型预训练语言模型PANGU-α的汉语预训练开放域对话生成模型.
+
+    PANGUBOT有如下特点:
+
+    \begin{enumerate}
+        \item 与其他在海量对话数据上从头开始训练的预训练对话模型不同，PANGUBOT通过\textbf{继承}预训练语言模型中宝贵的语言能力和知识，
+        以相对较少的数据和计算成本建立一个强大的对话模型
+        \item PANGUBOT在反应质量、知识和安全性\textbf{优于}最先进的中文对话系统
+        \item PANGUBOT可以很容易地被部署，以产生情感反应，而不需要进一步的训练
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}
+    \frametitle{PANGUBOT数据来源}
+
+    PANGUBOT数据包括社交媒体、基于知识的对话、问答三种类型.与其他大型对话模型相比，PANGUBOT的训练数据要小得多
+
+    \begin{columns}
+        \column{0.5\textwidth}
+        \begin{itemize}
+            \item 社交媒体数据主要考虑两个主流媒体:微博和豆瓣,有STC,RGC,LCCC-large和Douban四个数据集
+            \item 基于知识的对话数据有DuConv数据集
+            \item 问答数据有Children Dialog和CQA两个数据集
+        \end{itemize}
+
+        \column{0.5\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=1.0\textwidth]{fig/data.png}
+            \caption{数据集描述与统计}
+        \end{figure}
+
+    \end{columns}
+
+    用于训练PANGUBOT的数据集包含4400万个多回合对话会话，包含1亿个话语和13亿个token。它比用于训练EVA和PLATO-XL的数据集要小一个数量级以上。
+\end{frame}
+
+\begin{frame}
+    \frametitle{数据清洗}
+
+    由于很多对话数据来自开放资源，为了保证对话数据的质量，进行如下预处理步骤:
+    \begin{enumerate}
+        \item 去掉不含汉字的话语
+        \item 通过匹配预定义的黑名单词汇表来删除不当话语
+        \item 删除带有特殊字符、url或敏感信息(如电子邮件地址或个人id)的话语
+        \item 删除可能含有广告内容的话语
+        \item 把一个话语中连续重复的字符缩短为三个字符的最长长度
+        \item 删除超过100字的对话
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}
+    \frametitle{PANGUBOT模型训练}
+
+    因为PANGU-$\alpha$已经在一系列的NLP任务中表现得很好所以并非从零开始训练PANGUBOT而是直接从PANGU-$\alpha$中继承参数，
+    然后根据对话数据进行训练.因此PANGUBOT使用与PANGU-$\alpha$相同的架构，即类似gpt的自回归语言模型.
+
+    给定对话历史或上下文,PANGUBOT的目标是产生一个响应y，最大化式(1)
+    $$ p_\theta(\text{y}|X) = \prod ^n _{t=1} p_\theta(y_t | y_{<t},X) , (1) $$
+
+    其中 $ X = \{x_1, x_2，\ldots，x_{t−1}\} $ 为一系列句子,n是响应的长度
 
 \end{frame}
+
+\begin{frame}
+    \frametitle{PANGUBOT训练细节}
+
+    由于此模型训练数据较少,因此将训练损失用于反应和对话语境,即具有多个回合的话语,充分利用数据.
+    此外，为了确保在一个训练步骤中不受前一个对话会话上下文的干扰，
+    通过重置对话会话之间的掩码使模型只看到当前对话会话中的前一个标记.
+
+    训练参数:
+    \begin{columns}
+        \column{0.5\textwidth}
+        对于PANGUBOT350M
+        \begin{itemize}
+            \item 使用一个24层transform，隐藏层大小为1024，并设置attention-head的数量为16
+            \item 16 batch size / GPU
+            \item 使用16块NVIDIA V100图形处理器训练
+        \end{itemize}
+
+        \column{0.5\textwidth}
+        对于PANGUBOT2.6B
+        \begin{itemize}
+            \item 使用32层transform，隐藏层大小为2560，并设置attention-head的数量为32
+            \item 8 batch size / GPU
+            \item 使用32块NVIDIA V100图形处理器训练
+        \end{itemize}
+    \end{columns}
+    因此两种规模模型在一次训练中学习到的token数量是相同的,每10万step，大约20个epoch.
+    PANGUBOT350M总训练时间为2.5天左右，PANGUBOT2.6B总训练时间为5.5天左右.
+
+\end{frame}
+
+\subsection{实验方法与结果}
+\begin{frame}
+    \frametitle{实验方法}
+    实验分为4个部分:
+    \begin{enumerate}
+        \item 研究整体的对话反应质量
+        \item 研究PANGUBOT捕获知识量
+        \item 研究不同对话模型的安全问题
+        \item 证明PANGUBOT可以很容易地用于产生情绪反应
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}
+    \frametitle{整体的对话反应质量}
+    自聊对话流程:以一个预定义的第一轮提示开始，这些提示来自7个常见的领域(聊天、文学、体育、地理、旅游、常识、电影)总共有50个提示。
+    对话模型使用5个随机种子进行另外5轮(10轮)的自聊对话，从而产生250个对话。
+
+    评估标准:
+    \begin{enumerate}
+        \item 自动评估:计算了250对话回答的平均长度以及dis-n，以衡量生成的回答的语言多样性
+        \item 人工评价:选择了50个对话，由三位评注家从以下五个方面进行评价:Sensibility,Specificity,Interestingness,Hallucination,Safety
+        \item 人机交互评估:参与者用不同的对话模式进行对话，并判断他们的回答质量
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}
+    \frametitle{整体的对话反应质量}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\textwidth]{fig/result1.png}
+        \caption{自聊评估结果}
+    \end{figure}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\textwidth]{fig/result2.png}
+        \caption{交互式人工评价结果}
+    \end{figure}
+    PANGUBOT两种变体在总体反应SSI质量上仍优于CDIALGPT和EVA，且幻觉评分较低，安全评分较高.
+    其中PANGUBOT2.6B在交互式人评价方面略优于PANGUBOT350M,表明PANGUBOT2.6B在与真人对话时具有更好的性能.
+\end{frame}
+
+\begin{frame}
+    \frametitle{知识回应}
+    评估方式:从网络论坛众包了中文问答对,确保所有的问题都可以被认为是在“常识”的水平上，可以被K-12岁的孩子回答，
+    或可以通过一些在线资源，如搜索引擎的帮助下推断,还确保答案是(一个或几个)可以用几个标记(少于10个)描述的简单实体.
+    通过这种方式收集问题数据，并附上答案和证据.
+
+    评估标准:
+    \begin{enumerate}
+        \item 自动评估:一元分词精确度(“P”)、召回率(“R”)和F1分数，它们衡量黄金答案和生成的响应之间的重叠。
+        \item 人工评价:要求众包工作者检查答案是否正确，也就是人的准确性(“H-Acc.”)
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}
+    \frametitle{知识回应}
+    \begin{columns}
+        \column{0.5\textwidth}
+        对于PANGU-$\alpha$和PANGU- bot，两种模型的性能都明显优于其他模型.
+        PANGUBOT甚至可以在两种模型配置中大幅度超过PANGU-$\alpha$,
+        原因可能为没有提示的PANGU-$\alpha$更倾向于作为一种语言模型，而不是对话或问答系统.
+
+        \column{0.5\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.8\textwidth]{fig/result3.png}
+        \end{figure}
+    \end{columns}
+\end{frame}
+
+\begin{frame}
+    \frametitle{安全性问题}
+    收集手工制作的对抗性提示并进行人工评估，以彻底衡量对话系统的安全性.
+
+    将不安全分为以下3类:
+    \begin{itemize}
+        \item Harmful
+        \item Offensive
+        \item Controversial
+    \end{itemize}
+
+    在这些类别的基础上设计了三组模板和关键词来构建对抗性提示并与不同类别的不安全对话中的对话系统进行交互.
+    对于每一类，起草了大约160条对抗性提示，作为四个经评估的对话系统的输入.
+    然后使用人工注释器来评估生成响应的安全性.
+\end{frame}
+
+\begin{frame}
+    \frametitle{安全性问题}
+
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.9\textwidth]{fig/result4.png}
+        \end{figure}
+
+        虽然PANGUBOT的两个版本对恶意上下文有更多的相关响应，但与CDIALGPT和EVA相比，PANGUBOT的不安全性略低.
+        所有这四种模式在对抗性提示下仍然有较高的产生不安全反应的倾向,
+        在改善对话安全以建立更可靠和可用的对话系统方面仍有很大的空间.
+\end{frame}
+
+\begin{frame}
+    \frametitle{生成情绪反应}
+
+        \begin{figure}
+            \centering
+            \includegraphics[width=0.9\textwidth]{fig/result5.png}
+        \end{figure}
+
+        PANGUBOT2.6B确实产生了合理的反应，我们可以很容易地分辨出他们的情绪.这个结果很有趣，
+    因为PANGUBOT2.6B没有经过任何情绪对话数据集的训练，但它确实理解简单的情绪提示，并产生相应的情绪反应.
+\end{frame}
+
+
+
+
+\subsection{总结分析}
+\begin{frame}
+    \frametitle{总结分析}
+    在大型预训练模型PANGU-$\alpha$的基础上，得到一个具有350M和2.6B参数的中文开放领域对话模型PANGUBOT.
+    PANGUBOT具有强大的开放领域对话性能和较高的训练效率,与目前最先进的对话系统相比,在对话质量、对话知识、对话安全、对话情感四个方面都有出色表现.
+    \\ \hspace*{\fill} \\
+    但是还需要注意,除了知识之外更多的维度，如角色、共情、记忆等能否以更普遍的方式进行建模将是一个重要的问题,
+    此外反应的安全性仍非常关键,长尾分布的不安全案例对服务提供者是有巨大影响,安全性是在实践中应用代模型的最危险的部分.
+    \\ \hspace*{\fill} \\
+    PANGUBOT已取得一定成绩,但之后仍有工作需要完成.
+
+\end{frame}
+
+
+
 
 \section{百度PLATO-XL}
 \begin{frame}
