@@ -1,0 +1,42 @@
+\documentclass{beamer}
+\usepackage{amsmath, amsfonts, amssymb, amsthm}
+\usepackage{graphicx, caption, hyperref, url, cite}
+\usepackage[UTF8, noindent]{ctexcap}
+
+\usetheme{Boadilla}
+
+\title{汇报}
+\subtitle{项目三:基于大规模预训练模型的生成式知识问答}
+% \institute{项目三}
+\author{朱睿涵 \and 李宸亦}
+\date{\today}
+
+\setbeamertemplate{bibliography item}[text]
+
+\begin{document}
+
+\frame{\titlepage} % 标题页
+
+\AtBeginSection{
+    \begin{frame}
+        \frametitle{目录}
+
+        \tableofcontents[currentsection]
+    \end{frame}
+}
+
+\begin{frame}
+    \frametitle{title}
+
+    slide
+
+\end{frame}
+
+\begin{frame}{References}
+
+    \nocite{*}
+    \bibliographystyle{unsrt}
+    \bibliography{reference.bib}
+
+\end{frame}
+\end{document}
